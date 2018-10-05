@@ -70,7 +70,7 @@ module if_stage(
     if (reset)
       if_valid_inst_out <= `SD 1;  // must start with something
     else
-      if_valid_inst_out <= `SD mem_wb_valid_inst;
+      if_valid_inst_out <= `SD 1;
   end
   
 endmodule  // module if_stage

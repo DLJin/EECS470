@@ -67,6 +67,9 @@ module pipeline (
 
   );
 
+  // DATA HAZARD
+  logic stall;
+
   // Pipeline register enables
   logic   if_id_enable, id_ex_enable, ex_mem_enable, mem_wb_enable;
 
@@ -271,6 +274,57 @@ module pipeline (
   end // always
 
 
+
+
+  /*NOTES
+ * Does this work with load instructions? The ALU result after EX will not be
+ * the final register value it will be the memory location we are accessing.
+ * The true result for the dest_reg will only be correct after MEM. I think
+ * this will always be handled by adding a stall in ID if there is a data
+ * hazard for a load
+ */
+
+  logic[63:0] true_id_ex_rega, true_id_ex_regb; // updated values for id_ex_rega/id_ex_regb
+  always_comb // HANDLE DATA FORWARDING
+  begin // {
+    true_id_ex_rega = id_ex_rega; // default value is id_ex_rega if no hazard
+    true_id_ex_regb = id_ex_regb; // default value is id_ex_regb if no hazard
+  
+    if(wb_reg_wr_idx_out == id_ex_IR[25:21] // dest_rest for inst after wb is regA for curr inst
+      && wb_reg_wr_en_out) // inst after wb is writing to register file
+    begin // {
+      true_id_ex_rega = wb_reg_wr_data_out;
+    end // }
+    if(wb_reg_wr_idx_out == id_ex_IR[20:16] // dest_rest for inst after wb is regA for curr inst
+      && wb_reg_wr_en_out) // inst after wb is writing to register file
+    begin // {
+      true_id_ex_regb = wb_reg_wr_data_out;
+    end // }
+    if(mem_wb_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after mem is regA for curr inst
+      && !mem_wb_illegal && mem_wb_valid_inst) // inst after mem is legal and valid
+    begin // {
+      true_id_ex_rega = mem_wb_result;
+    end // }
+    if(mem_wb_dest_reg_idx == id_ex_IR[20:16] // dest_reg for inst after mem is regA for curr inst
+      && !mem_wb_illegal && mem_wb_valid_inst) // inst after mem is legal and valid
+    begin // {
+      true_id_ex_regb = mem_wb_result;
+    end // }
+    if(ex_mem_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after ex is regA for curr inst
+      && !ex_mem_illegal && ex_mem_valid_inst) // inst after ex is legal and valid
+    begin // {
+      true_id_ex_rega = ex_mem_alu_result;
+    end // }
+    if(ex_mem_dest_reg_idx == id_ex_IR[20:16] // dest_reg for inst after ex is regB for curr inst
+      && !ex_mem_illegal && ex_mem_valid_inst) // inst after ex is legal and valid
+    begin // {
+      true_id_ex_regb = ex_mem_alu_result;
+    end // }
+  end // }
+
+
+
+
   //////////////////////////////////////////////////
   //                                              //
   //                  EX-Stage                    //
@@ -282,8 +336,8 @@ module pipeline (
     .reset(reset),
     .id_ex_NPC(id_ex_NPC), 
     .id_ex_IR(id_ex_IR),
-    .id_ex_rega(id_ex_rega),
-    .id_ex_regb(id_ex_regb),
+    .id_ex_rega(true_id_ex_rega), // changed from id_ex_rega
+    .id_ex_regb(true_id_ex_regb), // changed from id_ex_regb
     .id_ex_opa_select(id_ex_opa_select),
     .id_ex_opb_select(id_ex_opb_select),
     .id_ex_alu_func(id_ex_alu_func),
@@ -326,7 +380,7 @@ module pipeline (
         ex_mem_wr_mem       <= `SD id_ex_wr_mem;
         ex_mem_halt         <= `SD id_ex_halt;
         ex_mem_illegal      <= `SD id_ex_illegal;
-        ex_mem_valid_inst   <= `SD id_ex_valid_inst;
+        ex_mem_valid_inst   <= `SD id_ex_valid_inst; 
         ex_mem_rega         <= `SD id_ex_rega;
         // these are results of EX stage
         ex_mem_alu_result   <= `SD ex_alu_result_out;
