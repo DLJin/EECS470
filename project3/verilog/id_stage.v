@@ -191,6 +191,10 @@ module id_stage(
         input   [4:0] wb_reg_wr_idx_out,  // Reg write index from WB Stage
         input  [63:0] wb_reg_wr_data_out,  // Reg write data from WB Stage
         input         if_id_valid_inst,
+        input  [31:0] id_ex_IR,  // Check if the inst in EX Stage is a LDQ
+        input         id_ex_dest_reg_idx, // dest_reg of inst in EX Stage
+        input         id_ex_illegal, // if inst in EX Stage is legal
+        input         id_ex_valid_inst, // if inst in EX Stage is valid
 
         output logic [63:0] id_ra_value_out,    // reg A value
         output logic [63:0] id_rb_value_out,    // reg B value
@@ -208,8 +212,9 @@ module id_stage(
         // or jump?
         output logic       id_halt_out,
         output logic       id_illegal_out,
-        output logic       id_valid_inst_out  // is inst a valid instruction to be 
-                                              // counted for CPI calculations?
+        output logic       id_valid_inst_out,  // is inst a valid instruction to be 
+                                               // counted for CPI calculations?
+        output logic       id_hazard_out // is there a data hazard that we need to stall for
               );
    
   DEST_REG_SEL dest_reg_select;
@@ -263,5 +268,25 @@ module id_stage(
       default:      id_dest_reg_idx_out = `ZERO_REG; 
     endcase
   end
-   
+
+  // to determine if there is a data hazard we need to stall for
+  always_comb
+  begin // {
+    id_hazard_out = 0;
+    if(id_ex_IR[31:26] == `LDQ_INST // inst in ex is a LDQ
+      && !id_ex_illegal && id_ex_valid_inst // inst in ex legal and valid
+      && !id_illegal_out && id_valid_inst_out) // curr inst is legal and valid
+    begin // {
+      if (id_opa_select_out == ALU_OPA_IS_REGA && // regA is a source register
+        if_id_IR[25:21] == id_ex_dest_reg_idx) // regA is the same as dest_reg for LDQ inst
+      begin // {
+        id_hazard_out = 1;
+      end // }
+      if (id_opb_select_out == ALU_OPB_IS_REGB && // regB is a source register
+        if_id_IR[20:16] == id_ex_dest_reg_idx) // regB is the same as dest_reg for LDQ inst
+      begin // {
+        id_hazard_out = 1;
+      end // }
+    end // }
+  end // }
 endmodule // module id_stage

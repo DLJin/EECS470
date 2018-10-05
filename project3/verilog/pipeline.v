@@ -151,6 +151,15 @@ module pipeline (
   assign proc2mem_addr =
        (proc2Dmem_command == BUS_NONE) ? proc2Imem_addr : proc2Dmem_addr;
 
+  // HANDLE DATA HAZARDS
+  logic id_hazard_out;
+
+  // STALL WHEN LDQ OR STQ IS IN MEMORY
+  logic mem_in_use; 
+  assign mem_in_use = ((ex_mem_rd_mem || ex_mem_wr_mem) // inst in mem reading or writing mem 
+    && !ex_mem_illegal && ex_mem_valid_inst) || // legal and vlaid inst
+    id_hazard_out; // or stalling for data hazard
+
   //////////////////////////////////////////////////
   //                                              //
   //                  IF-Stage                    //
@@ -173,16 +182,17 @@ module pipeline (
   );
 
   // STALL WHEN LDQ OR STQ IS IN MEMORY
-  logic mem_in_use; 
-  assign mem_in_use = (ex_mem_rd_mem || ex_mem_wr_mem) // inst in mem reading or writing mem 
-    && !ex_mem_illegal && ex_mem_valid_inst; // legal and vlaid inst
+  /*logic mem_in_use; 
+  assign mem_in_use = ((ex_mem_rd_mem || ex_mem_wr_mem) // inst in mem reading or writing mem 
+    && !ex_mem_illegal && ex_mem_valid_inst) || // legal and vlaid inst
+    id_hazard_out; // or stalling for data hazard*/
 
   //////////////////////////////////////////////////
   //                                              //
   //            IF/ID Pipeline Register           //
   //                                              //
   //////////////////////////////////////////////////
-  assign if_id_enable = 1'b1; // always enabled
+  assign if_id_enable = !id_hazard_out; // freeze register if stalling
   // synopsys sync_set_reset "reset"
   always_ff @(posedge clock) begin
     if(reset) begin
@@ -197,6 +207,8 @@ module pipeline (
     end // if (if_id_enable)
   end // always
 
+  // HANDLE DATA HAZARDS
+  // logic id_hazard_out;
    
   //////////////////////////////////////////////////
   //                                              //
@@ -211,6 +223,10 @@ module pipeline (
     .wb_reg_wr_en_out   (wb_reg_wr_en_out),
     .wb_reg_wr_idx_out  (wb_reg_wr_idx_out),
     .wb_reg_wr_data_out (wb_reg_wr_data_out),
+    .id_ex_IR (id_ex_IR),
+    .id_ex_dest_reg_idx (id_ex_dest_reg_idx),
+    .id_ex_illegal (id_ex_illegal),
+    .id_ex_valid_inst (id_ex_valid_inst),
 
     // Outputs
     .id_ra_value_out(id_rega_out),
@@ -225,7 +241,8 @@ module pipeline (
     .id_uncond_branch_out(id_uncond_branch_out),
     .id_halt_out(id_halt_out),
     .id_illegal_out(id_illegal_out),
-    .id_valid_inst_out(id_valid_inst_out)
+    .id_valid_inst_out(id_valid_inst_out),
+    .id_hazard_out(id_hazard_out)
   );
 
 
@@ -234,10 +251,10 @@ module pipeline (
   //            ID/EX Pipeline Register           //
   //                                              //
   //////////////////////////////////////////////////
-  assign id_ex_enable = 1'b1; // always enabled
+  assign id_ex_enable = !id_hazard_out; // freeze if stalling for data hazard
   // synopsys sync_set_reset "reset"
   always_ff @(posedge clock) begin
-    if (reset) begin
+    if (reset || id_hazard_out) begin
       id_ex_NPC           <= `SD 0;
       id_ex_IR            <= `SD `NOOP_INST;
       id_ex_rega          <= `SD 0;
@@ -274,9 +291,6 @@ module pipeline (
     end // else: !if(reset)
   end // always
 
-
-
-
   /*NOTES
  * Does this work with load instructions? The ALU result after EX will not be
  * the final register value it will be the memory location we are accessing.
@@ -293,7 +307,7 @@ module pipeline (
     true_id_ex_rega = id_ex_rega; // default value is id_ex_rega if no hazard
     true_id_ex_regb = id_ex_regb; // default value is id_ex_regb if no hazard
   
-    if(wb_reg_wr_idx_out == id_ex_IR[25:21] // dest_rest for inst after wb is regA for curr inst
+    /*if(wb_reg_wr_idx_out == id_ex_IR[25:21] // dest_rest for inst after wb is regA for curr inst
       && wb_reg_wr_en_out) // inst after wb is writing to register file
     begin // {
       true_id_ex_rega = wb_reg_wr_data_out;
@@ -302,7 +316,7 @@ module pipeline (
       && wb_reg_wr_en_out) // inst after wb is writing to register file
     begin // {
       true_id_ex_regb = wb_reg_wr_data_out;
-    end // }
+    end // }*/
     if(mem_wb_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after mem is regA for curr inst
       && !mem_wb_illegal && mem_wb_valid_inst) // inst after mem is legal and valid
     begin // {
