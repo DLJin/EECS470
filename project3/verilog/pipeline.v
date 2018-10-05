@@ -67,9 +67,6 @@ module pipeline (
 
   );
 
-  // DATA HAZARD
-  logic stall;
-
   // Pipeline register enables
   logic   if_id_enable, id_ex_enable, ex_mem_enable, mem_wb_enable;
 
@@ -163,7 +160,7 @@ module pipeline (
     // Inputs
     .clock (clock),
     .reset (reset),
-    .mem_wb_valid_inst(mem_wb_valid_inst),
+    .mem_in_use(mem_in_use),
     .ex_mem_take_branch(ex_mem_take_branch),
     .ex_mem_target_pc(ex_mem_alu_result),
     .Imem2proc_data(mem2proc_data),
@@ -175,6 +172,10 @@ module pipeline (
     .if_valid_inst_out(if_valid_inst_out)
   );
 
+  // STALL WHEN LDQ OR STQ IS IN MEMORY
+  logic mem_in_use; 
+  assign mem_in_use = (ex_mem_rd_mem || ex_mem_wr_mem) // inst in mem reading or writing mem 
+    && !ex_mem_illegal && ex_mem_valid_inst; // legal and vlaid inst
 
   //////////////////////////////////////////////////
   //                                              //
@@ -282,6 +283,8 @@ module pipeline (
  * The true result for the dest_reg will only be correct after MEM. I think
  * this will always be handled by adding a stall in ID if there is a data
  * hazard for a load
+ *
+ * Also, maybe need to add a special caes for R31?
  */
 
   logic[63:0] true_id_ex_rega, true_id_ex_regb; // updated values for id_ex_rega/id_ex_regb

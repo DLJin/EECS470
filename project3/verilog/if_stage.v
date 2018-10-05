@@ -14,7 +14,7 @@
 module if_stage(
     input         clock,                  // system clock
     input         reset,                  // system reset
-    input         mem_wb_valid_inst,      // only go to next instruction when true
+    input         mem_in_use,      // for stalling when memory is in use
                                           // makes pipeline behave as single-cycle
     input         ex_mem_take_branch,      // taken-branch signal
     input  [63:0] ex_mem_target_pc,        // target pc: use if take_branch is TRUE
@@ -47,7 +47,7 @@ module if_stage(
   assign next_PC = ex_mem_take_branch ? ex_mem_target_pc : PC_plus_4;
 
   // The take-branch signal must override stalling (otherwise it may be lost)
-  assign PC_enable = if_valid_inst_out | ex_mem_take_branch;
+  assign PC_enable = (if_valid_inst_out | ex_mem_take_branch) && !mem_in_use; // hold pc the same if mem is in use
 
   // Pass PC+4 down pipeline w/instruction
   assign if_NPC_out = PC_plus_4;
@@ -60,17 +60,7 @@ module if_stage(
     else if(PC_enable)
       PC_reg <= `SD next_PC; // transition to next PC
   end  // always
-
-  // This FF controls the stall signal that artificially forces
-  // fetch to stall until the previous instruction has completed
-  // This must be removed for Project 3
   
-  // synopsys sync_set_reset "reset"
-  always_ff @(posedge clock) begin
-    if (reset)
-      if_valid_inst_out <= `SD 1;  // must start with something
-    else
-      if_valid_inst_out <= `SD 1;
-  end
+  assign if_valid_inst_out = !mem_in_use; // add a noop if mem is in use
   
 endmodule  // module if_stage
