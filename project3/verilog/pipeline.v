@@ -157,8 +157,8 @@ module pipeline (
   // STALL WHEN LDQ OR STQ IS IN MEMORY
   logic mem_in_use; 
   assign mem_in_use = ((ex_mem_rd_mem || ex_mem_wr_mem) // inst in mem reading or writing mem 
-    && !ex_mem_illegal && ex_mem_valid_inst) || // legal and vlaid inst
-    id_hazard_out; // or stalling for data hazard
+    && !ex_mem_illegal && ex_mem_valid_inst); /* || // legal and vlaid inst
+    id_hazard_out;*/ // or stalling for data hazard
 
   //////////////////////////////////////////////////
   //                                              //
@@ -173,6 +173,7 @@ module pipeline (
     .ex_mem_take_branch(ex_mem_take_branch),
     .ex_mem_target_pc(ex_mem_alu_result),
     .Imem2proc_data(mem2proc_data),
+    .id_hazard_out(id_hazard_out),
 
     // Outputs
     .if_NPC_out(if_NPC_out), 
@@ -195,7 +196,7 @@ module pipeline (
   assign if_id_enable = !id_hazard_out; // freeze register if stalling
   // synopsys sync_set_reset "reset"
   always_ff @(posedge clock) begin
-    if(reset) begin
+    if(reset || ex_mem_take_branch) begin
       if_id_NPC        <= `SD 0;
       if_id_IR         <= `SD `NOOP_INST;
       if_id_valid_inst <= `SD `FALSE;
@@ -227,6 +228,17 @@ module pipeline (
     .id_ex_dest_reg_idx (id_ex_dest_reg_idx),
     .id_ex_illegal (id_ex_illegal),
     .id_ex_valid_inst (id_ex_valid_inst),
+    .ex_mem_IR (ex_mem_IR),
+    .ex_mem_dest_reg_idx (ex_mem_dest_reg_idx),
+    .ex_mem_illegal (ex_mem_illegal),
+    .ex_mem_valid_inst (ex_mem_valid_inst),
+    .mem_wb_IR (mem_wb_IR),
+    .mem_wb_dest_reg_idx (mem_wb_dest_reg_idx),
+    .mem_wb_illegal (mem_wb_illegal),
+    .mem_wb_valid_inst (mem_wb_valid_inst),
+
+
+
 
     // Outputs
     .id_ra_value_out(id_rega_out),
@@ -254,7 +266,7 @@ module pipeline (
   assign id_ex_enable = !id_hazard_out; // freeze if stalling for data hazard
   // synopsys sync_set_reset "reset"
   always_ff @(posedge clock) begin
-    if (reset || id_hazard_out) begin
+    if (reset || id_hazard_out || ex_mem_take_branch) begin
       id_ex_NPC           <= `SD 0;
       id_ex_IR            <= `SD `NOOP_INST;
       id_ex_rega          <= `SD 0;
@@ -301,13 +313,13 @@ module pipeline (
  * Also, maybe need to add a special caes for R31?
  */
 
-  logic[63:0] true_id_ex_rega, true_id_ex_regb; // updated values for id_ex_rega/id_ex_regb
+  /*logic[63:0] true_id_ex_rega, true_id_ex_regb; // updated values for id_ex_rega/id_ex_regb
   always_comb // HANDLE DATA FORWARDING
   begin // {
     true_id_ex_rega = id_ex_rega; // default value is id_ex_rega if no hazard
     true_id_ex_regb = id_ex_regb; // default value is id_ex_regb if no hazard
   
-    /*if(wb_reg_wr_idx_out == id_ex_IR[25:21] // dest_rest for inst after wb is regA for curr inst
+    if(wb_reg_wr_idx_out == id_ex_IR[25:21] // dest_rest for inst after wb is regA for curr inst
       && wb_reg_wr_en_out) // inst after wb is writing to register file
     begin // {
       true_id_ex_rega = wb_reg_wr_data_out;
@@ -316,31 +328,31 @@ module pipeline (
       && wb_reg_wr_en_out) // inst after wb is writing to register file
     begin // {
       true_id_ex_regb = wb_reg_wr_data_out;
-    end // }*/
-    if(mem_wb_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after mem is regA for curr inst
+    end // }
+    if(mem_wb_dest_reg_idx != `ZERO_REG && mem_wb_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after mem is regA for curr inst
       && !mem_wb_illegal && mem_wb_valid_inst) // inst after mem is legal and valid
     begin // {
       true_id_ex_rega = mem_wb_result;
     end // }
-    if(mem_wb_dest_reg_idx == id_ex_IR[20:16] // dest_reg for inst after mem is regA for curr inst
+    if(mem_wb_dest_reg_idx != `ZERO_REG && mem_wb_dest_reg_idx == id_ex_IR[20:16] // dest_reg for inst after mem is regA for curr inst
       && !mem_wb_illegal && mem_wb_valid_inst) // inst after mem is legal and valid
     begin // {
       true_id_ex_regb = mem_wb_result;
     end // }
-    if(ex_mem_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after ex is regA for curr inst
+    if(ex_mem_dest_reg_idx != `ZERO_REG && ex_mem_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after ex is regA for curr inst
       && !ex_mem_illegal && ex_mem_valid_inst) // inst after ex is legal and valid
     begin // {
       true_id_ex_rega = ex_mem_alu_result;
     end // }
-    if(ex_mem_dest_reg_idx == id_ex_IR[20:16] // dest_reg for inst after ex is regB for curr inst
+    if(ex_mem_dest_reg_idx != `ZERO_REG && ex_mem_dest_reg_idx == id_ex_IR[20:16] // dest_reg for inst after ex is regB for curr inst
       && !ex_mem_illegal && ex_mem_valid_inst) // inst after ex is legal and valid
     begin // {
       true_id_ex_regb = ex_mem_alu_result;
     end // }
-  end // }
+  end // }*/
 
 
-
+  logic [63:0] ex_new_rega;
 
   //////////////////////////////////////////////////
   //                                              //
@@ -353,15 +365,20 @@ module pipeline (
     .reset(reset),
     .id_ex_NPC(id_ex_NPC), 
     .id_ex_IR(id_ex_IR),
-    .id_ex_rega(true_id_ex_rega), // changed from id_ex_rega
-    .id_ex_regb(true_id_ex_regb), // changed from id_ex_regb
+    .id_ex_rega(id_ex_rega), 
+    .id_ex_regb(id_ex_regb),
     .id_ex_opa_select(id_ex_opa_select),
     .id_ex_opb_select(id_ex_opb_select),
     .id_ex_alu_func(id_ex_alu_func),
     .id_ex_cond_branch(id_ex_cond_branch),
     .id_ex_uncond_branch(id_ex_uncond_branch),
+    .ex_mem_alu_result(ex_mem_alu_result),
+    .ex_mem_dest_reg_idx(ex_mem_dest_reg_idx),
+    .mem_wb_result(mem_wb_result),
+    .mem_wb_dest_reg_idx(mem_wb_dest_reg_idx),
 
     // Outputs
+    .ex_new_rega(ex_new_rega),
     .ex_alu_result_out(ex_alu_result_out),
     .ex_take_branch_out(ex_take_branch_out)
     );
@@ -375,7 +392,7 @@ module pipeline (
   assign ex_mem_enable = 1'b1; // always enabled
   // synopsys sync_set_reset "reset"
   always_ff @(posedge clock) begin
-    if (reset) begin
+    if (reset || ex_mem_take_branch) begin
       ex_mem_NPC          <= `SD 0;
       ex_mem_IR           <= `SD `NOOP_INST;
       ex_mem_dest_reg_idx <= `SD `ZERO_REG;
@@ -398,8 +415,8 @@ module pipeline (
         ex_mem_halt         <= `SD id_ex_halt;
         ex_mem_illegal      <= `SD id_ex_illegal;
         ex_mem_valid_inst   <= `SD id_ex_valid_inst; 
-        ex_mem_rega         <= `SD id_ex_rega;
         // these are results of EX stage
+        ex_mem_rega         <= `SD ex_new_rega;
         ex_mem_alu_result   <= `SD ex_alu_result_out;
         ex_mem_take_branch  <= `SD ex_take_branch_out;
       end // if

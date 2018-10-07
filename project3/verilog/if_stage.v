@@ -19,6 +19,7 @@ module if_stage(
     input         ex_mem_take_branch,      // taken-branch signal
     input  [63:0] ex_mem_target_pc,        // target pc: use if take_branch is TRUE
     input  [63:0] Imem2proc_data,          // Data coming back from instruction-memory
+    input         id_hazard_out,           // if there is a data hazard
 
     output logic [63:0] proc2Imem_addr,    // Address sent to Instruction memory
     output logic [63:0] if_NPC_out,        // PC of instruction after fetched (PC+4).
@@ -47,10 +48,10 @@ module if_stage(
   assign next_PC = ex_mem_take_branch ? ex_mem_target_pc : PC_plus_4;
 
   // The take-branch signal must override stalling (otherwise it may be lost)
-  assign PC_enable = (if_valid_inst_out | ex_mem_take_branch) && !mem_in_use; // hold pc the same if mem is in use
+  assign PC_enable = (if_valid_inst_out | ex_mem_take_branch) && !mem_in_use && !id_hazard_out; // hold pc the same if mem is in use or if there is a data hazard
 
   // Pass PC+4 down pipeline w/instruction
-  assign if_NPC_out = PC_plus_4;
+  assign if_NPC_out = mem_in_use ? 64'h0 : PC_plus_4;
 
   // This register holds the PC value
   // synopsys sync_set_reset "reset"

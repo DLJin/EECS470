@@ -48,20 +48,24 @@ typedef enum logic [3:0] {
 //
 // ALU opA input mux selects
 //
-typedef enum logic [1:0] {
-  ALU_OPA_IS_REGA        = 2'h0,
-  ALU_OPA_IS_MEM_DISP    = 2'h1,
-  ALU_OPA_IS_NPC         = 2'h2,
-  ALU_OPA_IS_NOT3        = 2'h3
+typedef enum logic [2:0] {
+  ALU_OPA_IS_REGA        = 3'h0,
+  ALU_OPA_IS_MEM_DISP    = 3'h1,
+  ALU_OPA_IS_NPC         = 3'h2,
+  ALU_OPA_IS_NOT3        = 3'h3,
+  ALU_OPA_IS_EX_MEM      = 3'h4,
+  ALU_OPA_IS_MEM_WB      = 3'h5
 } ALU_OPA_SELECT;
 
 //
 // ALU opB input mux selects
 //
-typedef enum logic [1:0] {
-  ALU_OPB_IS_REGB       = 2'h0,
-  ALU_OPB_IS_ALU_IMM    = 2'h1,
-  ALU_OPB_IS_BR_DISP    = 2'h2
+typedef enum logic [2:0] {
+  ALU_OPB_IS_REGB       = 3'h0,
+  ALU_OPB_IS_ALU_IMM    = 3'h1,
+  ALU_OPB_IS_BR_DISP    = 3'h2,
+  ALU_OPB_IS_EX_MEM     = 3'h3,
+  ALU_OPB_IS_MEM_WB     = 3'h4
 } ALU_OPB_SELECT;
 
 //

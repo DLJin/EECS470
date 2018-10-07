@@ -109,7 +109,12 @@ module ex_stage(
     ALU_FUNC       id_ex_alu_func,      // ALU function select from decoder
     input          id_ex_cond_branch,   // is this a cond br? from decoder
     input          id_ex_uncond_branch, // is this an uncond br? from decoder
+    input  [63:0]  ex_mem_alu_result,   // result of inst in MEM Stage
+    input  [4:0]   ex_mem_dest_reg_idx, // dest_reg of inst in MEM Stage
+    input  [63:0]  mem_wb_result,       // result of inst in WB Stage
+    input  [4:0]   mem_wb_dest_reg_idx,
 
+    output logic [63:0]  ex_new_rega,         // forwarded value of regA for stores
     output [63:0]  ex_alu_result_out,   // ALU result
     output         ex_take_branch_out  // is this a taken branch?
 
@@ -127,15 +132,69 @@ module ex_stage(
   wire [63:0] br_disp  = { {41{id_ex_IR[20]}}, id_ex_IR[20:0], 2'b00 };
   wire [63:0] alu_imm  = { 56'b0, id_ex_IR[20:13] };
    
+
+  wire [4:0] ra_idx = id_ex_IR[25:21];
+  wire [4:0] rb_idx = id_ex_IR[20:16];
+
+  ALU_OPA_SELECT temp_opa_select;
+  ALU_OPB_SELECT temp_opb_select;
+  // to determine where to forward data from
+  always_comb
+  begin // {
+    temp_opa_select = id_ex_opa_select; // default values
+    temp_opb_select = id_ex_opb_select; 
+    ex_new_rega = id_ex_rega;
+
+    if(id_ex_opa_select == ALU_OPA_IS_REGA) // if regA is a source register
+    begin // {
+      if(ra_idx == mem_wb_dest_reg_idx)
+      begin // {
+        temp_opa_select = ALU_OPA_IS_MEM_WB;
+      end //}
+      if(ra_idx == ex_mem_dest_reg_idx)
+      begin // {
+        temp_opa_select = ALU_OPA_IS_EX_MEM;
+      end // }
+    end // }
+
+    if(id_ex_opb_select == ALU_OPB_IS_REGB) // if regB is a source register
+    begin // {
+      if(rb_idx == mem_wb_dest_reg_idx)
+      begin // {
+        temp_opb_select = ALU_OPB_IS_MEM_WB;
+      end //}
+      if(rb_idx == ex_mem_dest_reg_idx)
+      begin // {
+        temp_opb_select = ALU_OPB_IS_EX_MEM;
+      end // }
+    end // }
+
+    if(id_ex_IR[31:26] == `STQ_INST)
+    begin // {
+      if(ra_idx == mem_wb_dest_reg_idx)
+      begin // {
+        ex_new_rega = mem_wb_result;
+      end // }
+      if(ra_idx == ex_mem_dest_reg_idx)
+      begin // {
+        ex_new_rega = ex_mem_alu_result;
+      end // }
+    end // } 
+  end // {
+
+
    //
    // ALU opA mux
    //
   always_comb begin
-    case (id_ex_opa_select)
+    opa_mux_out = 64'hbaadbeefdeadbeef;
+    case (temp_opa_select)
       ALU_OPA_IS_REGA:     opa_mux_out = id_ex_rega;
       ALU_OPA_IS_MEM_DISP: opa_mux_out = mem_disp;
       ALU_OPA_IS_NPC:      opa_mux_out = id_ex_NPC;
       ALU_OPA_IS_NOT3:     opa_mux_out = ~64'h3;
+      ALU_OPA_IS_EX_MEM:   opa_mux_out = ex_mem_alu_result;
+      ALU_OPA_IS_MEM_WB:   opa_mux_out = mem_wb_result;
     endcase
   end
 
@@ -146,10 +205,12 @@ module ex_stage(
     // Default value, Set only because the case isnt full.  If you see this
     // value on the output of the mux you have an invalid opb_select
     opb_mux_out = 64'hbaadbeefdeadbeef;
-    case (id_ex_opb_select)
+    case (temp_opb_select)
       ALU_OPB_IS_REGB:    opb_mux_out = id_ex_regb;
       ALU_OPB_IS_ALU_IMM: opb_mux_out = alu_imm;
       ALU_OPB_IS_BR_DISP: opb_mux_out = br_disp;
+      ALU_OPB_IS_EX_MEM:  opb_mux_out = ex_mem_alu_result;
+      ALU_OPB_IS_MEM_WB:  opb_mux_out = mem_wb_result;
     endcase 
   end
 
