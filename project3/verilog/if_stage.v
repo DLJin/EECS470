@@ -48,7 +48,7 @@ module if_stage(
   assign next_PC = ex_mem_take_branch ? ex_mem_target_pc : PC_plus_4;
 
   // The take-branch signal must override stalling (otherwise it may be lost)
-  assign PC_enable = (if_valid_inst_out | ex_mem_take_branch) && !mem_in_use && !id_hazard_out; // hold pc the same if mem is in use or if there is a data hazard
+  assign PC_enable = ((if_valid_inst_out && !mem_in_use && !id_hazard_out) | ex_mem_take_branch); // hold pc the same if mem is in use or if there is a data hazard
 
   // Pass PC+4 down pipeline w/instruction
   assign if_NPC_out = mem_in_use ? 64'h0 : PC_plus_4;

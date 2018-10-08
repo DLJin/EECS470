@@ -157,8 +157,7 @@ module pipeline (
   // STALL WHEN LDQ OR STQ IS IN MEMORY
   logic mem_in_use; 
   assign mem_in_use = ((ex_mem_rd_mem || ex_mem_wr_mem) // inst in mem reading or writing mem 
-    && !ex_mem_illegal && ex_mem_valid_inst); /* || // legal and vlaid inst
-    id_hazard_out;*/ // or stalling for data hazard
+    && !ex_mem_illegal && ex_mem_valid_inst); // legal and vlaid inst
 
   //////////////////////////////////////////////////
   //                                              //
@@ -182,12 +181,6 @@ module pipeline (
     .if_valid_inst_out(if_valid_inst_out)
   );
 
-  // STALL WHEN LDQ OR STQ IS IN MEMORY
-  /*logic mem_in_use; 
-  assign mem_in_use = ((ex_mem_rd_mem || ex_mem_wr_mem) // inst in mem reading or writing mem 
-    && !ex_mem_illegal && ex_mem_valid_inst) || // legal and vlaid inst
-    id_hazard_out; // or stalling for data hazard*/
-
   //////////////////////////////////////////////////
   //                                              //
   //            IF/ID Pipeline Register           //
@@ -207,9 +200,6 @@ module pipeline (
       if_id_valid_inst <= `SD if_valid_inst_out;
     end // if (if_id_enable)
   end // always
-
-  // HANDLE DATA HAZARDS
-  // logic id_hazard_out;
    
   //////////////////////////////////////////////////
   //                                              //
@@ -228,17 +218,6 @@ module pipeline (
     .id_ex_dest_reg_idx (id_ex_dest_reg_idx),
     .id_ex_illegal (id_ex_illegal),
     .id_ex_valid_inst (id_ex_valid_inst),
-    .ex_mem_IR (ex_mem_IR),
-    .ex_mem_dest_reg_idx (ex_mem_dest_reg_idx),
-    .ex_mem_illegal (ex_mem_illegal),
-    .ex_mem_valid_inst (ex_mem_valid_inst),
-    .mem_wb_IR (mem_wb_IR),
-    .mem_wb_dest_reg_idx (mem_wb_dest_reg_idx),
-    .mem_wb_illegal (mem_wb_illegal),
-    .mem_wb_valid_inst (mem_wb_valid_inst),
-
-
-
 
     // Outputs
     .id_ra_value_out(id_rega_out),
@@ -302,55 +281,6 @@ module pipeline (
       end // if
     end // else: !if(reset)
   end // always
-
-  /*NOTES
- * Does this work with load instructions? The ALU result after EX will not be
- * the final register value it will be the memory location we are accessing.
- * The true result for the dest_reg will only be correct after MEM. I think
- * this will always be handled by adding a stall in ID if there is a data
- * hazard for a load
- *
- * Also, maybe need to add a special caes for R31?
- */
-
-  /*logic[63:0] true_id_ex_rega, true_id_ex_regb; // updated values for id_ex_rega/id_ex_regb
-  always_comb // HANDLE DATA FORWARDING
-  begin // {
-    true_id_ex_rega = id_ex_rega; // default value is id_ex_rega if no hazard
-    true_id_ex_regb = id_ex_regb; // default value is id_ex_regb if no hazard
-  
-    if(wb_reg_wr_idx_out == id_ex_IR[25:21] // dest_rest for inst after wb is regA for curr inst
-      && wb_reg_wr_en_out) // inst after wb is writing to register file
-    begin // {
-      true_id_ex_rega = wb_reg_wr_data_out;
-    end // }
-    if(wb_reg_wr_idx_out == id_ex_IR[20:16] // dest_rest for inst after wb is regA for curr inst
-      && wb_reg_wr_en_out) // inst after wb is writing to register file
-    begin // {
-      true_id_ex_regb = wb_reg_wr_data_out;
-    end // }
-    if(mem_wb_dest_reg_idx != `ZERO_REG && mem_wb_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after mem is regA for curr inst
-      && !mem_wb_illegal && mem_wb_valid_inst) // inst after mem is legal and valid
-    begin // {
-      true_id_ex_rega = mem_wb_result;
-    end // }
-    if(mem_wb_dest_reg_idx != `ZERO_REG && mem_wb_dest_reg_idx == id_ex_IR[20:16] // dest_reg for inst after mem is regA for curr inst
-      && !mem_wb_illegal && mem_wb_valid_inst) // inst after mem is legal and valid
-    begin // {
-      true_id_ex_regb = mem_wb_result;
-    end // }
-    if(ex_mem_dest_reg_idx != `ZERO_REG && ex_mem_dest_reg_idx == id_ex_IR[25:21] // dest_reg for inst after ex is regA for curr inst
-      && !ex_mem_illegal && ex_mem_valid_inst) // inst after ex is legal and valid
-    begin // {
-      true_id_ex_rega = ex_mem_alu_result;
-    end // }
-    if(ex_mem_dest_reg_idx != `ZERO_REG && ex_mem_dest_reg_idx == id_ex_IR[20:16] // dest_reg for inst after ex is regB for curr inst
-      && !ex_mem_illegal && ex_mem_valid_inst) // inst after ex is legal and valid
-    begin // {
-      true_id_ex_regb = ex_mem_alu_result;
-    end // }
-  end // }*/
-
 
   logic [63:0] ex_new_rega;
 

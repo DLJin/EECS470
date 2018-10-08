@@ -197,17 +197,7 @@ module id_stage(
         input         id_ex_illegal, // if inst in EX Stage is legal
         input         id_ex_valid_inst, // if inst in EX Stage is valid
 
-	input  [31:0] ex_mem_IR,  // Check if the inst in MEM Stage will change dest_reg
-        input  [4:0]  ex_mem_dest_reg_idx, // dest_reg of inst in MEM Stage
-        input         ex_mem_illegal, // if inst in MEM Stage is legal
-        input         ex_mem_valid_inst, // if inst in MEM Stage is valid
-
-	input  [31:0] mem_wb_IR,  // Check if the inst in WB Stage is a LDQ
-        input  [4:0]  mem_wb_dest_reg_idx, // dest_reg of inst in WB Stage
-        input         mem_wb_illegal, // if inst in WB Stage is legal
-        input         mem_wb_valid_inst, // if inst in WB Stage is valid
-
-        output logic [63:0] id_ra_value_out,    // reg A value
+	output logic [63:0] id_ra_value_out,    // reg A value
         output logic [63:0] id_rb_value_out,    // reg B value
         
         output ALU_OPA_SELECT id_opa_select_out,    // ALU opa mux select (ALU_OPA_xxx *)
@@ -229,8 +219,6 @@ module id_stage(
               );
    
   DEST_REG_SEL dest_reg_select;
-  ALU_OPA_SELECT temp_id_opa_select_out;
-  ALU_OPB_SELECT temp_id_opb_select_out;
 
   // instruction fields read from IF/ID pipeline register
   wire    [4:0] ra_idx = if_id_IR[25:21];    // inst operand A register index
@@ -258,8 +246,8 @@ module id_stage(
     .valid_inst_in(if_id_valid_inst),
 
     // Outputs
-    .opa_select(temp_id_opa_select_out),
-    .opb_select(temp_id_opb_select_out),
+    .opa_select(id_opa_select_out),
+    .opb_select(id_opb_select_out),
     .alu_func(id_alu_func_out),
     .dest_reg(dest_reg_select),
     .rd_mem(id_rd_mem_out),
@@ -290,54 +278,21 @@ module id_stage(
       && !id_ex_illegal && id_ex_valid_inst // inst in ex legal and valid
       && !id_illegal_out && id_valid_inst_out) // curr inst is legal and valid
     begin // {
-      if (temp_id_opa_select_out == ALU_OPA_IS_REGA && // regA is a source register
+      if (id_opa_select_out == ALU_OPA_IS_REGA && // regA is a source register
         ra_idx == id_ex_dest_reg_idx) // regA is the same as dest_reg for LDQ inst
       begin // {
         id_hazard_out = 1;
       end // }
-      if (temp_id_opb_select_out == ALU_OPB_IS_REGB && // regB is a source register
+      if (id_opb_select_out == ALU_OPB_IS_REGB && // regB is a source register
         rb_idx == id_ex_dest_reg_idx) // regB is the same as dest_reg for LDQ inst
       begin // {
         id_hazard_out = 1;
       end // }
+      if (if_id_IR[31:26] == `STQ_INST // special case for STQ
+        && ra_idx == id_ex_dest_reg_idx) // data hazard
+      begin // {
+        id_hazard_out = 1;
+      end
     end // }
   end // }
-
-
-  assign id_opa_select_out = temp_id_opa_select_out;
-  assign id_opb_select_out = temp_id_opb_select_out;
-  // to determine where to forward data from
-  /*always_comb
-  begin // {
-    id_opa_select_out = temp_id_opa_select_out; // default values
-    id_opb_select_out = temp_id_opb_select_out; 
-
-    if(temp_id_opa_select_out == ALU_OPA_IS_REGA) // if regA is a source register
-    begin // {
-      if(ra_idx == mem_wb_dest_reg_idx // dependancy on dest_reg of inst in wb
-        && !mem_wb_illegal && mem_wb_valid_inst) // inst is legal and valid
-      begin // {
-        id_opa_select_out = ALU_OPA_IS_MEM_WB;
-      end //}
-      if(ra_idx == ex_mem_dest_reg_idx // dependacy on dest_reg of inst in mem
-        && !ex_mem_illegal && ex_mem_valid_inst) // inst is legal and valid
-      begin // {
-        id_opa_select_out = ALU_OPA_IS_EX_MEM;
-      end // }
-    end // }
-
-    if(temp_id_opb_select_out == ALU_OPB_IS_REGB) // if regB is a source register
-    begin // {
-      if(rb_idx == mem_wb_dest_reg_idx // dependancy on dest_reg of inst in wb
-        && !mem_wb_illegal && mem_wb_valid_inst) // inst is legal and valid
-      begin // {
-        id_opb_select_out = ALU_OPB_IS_MEM_WB;
-      end //}
-      if(rb_idx == ex_mem_dest_reg_idx // dependacy on dest_reg of inst in mem
-        && !ex_mem_illegal && ex_mem_valid_inst) // inst is legal and valid
-      begin // {
-        id_opb_select_out = ALU_OPB_IS_EX_MEM;
-      end // }
-    end // } 
-  end // {*/
-endmodule // module id_stage
+  endmodule // module id_stage

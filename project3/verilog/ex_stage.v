@@ -145,7 +145,7 @@ module ex_stage(
     temp_opb_select = id_ex_opb_select; 
     ex_new_rega = id_ex_rega;
 
-    if(id_ex_opa_select == ALU_OPA_IS_REGA) // if regA is a source register
+    if(id_ex_opa_select == ALU_OPA_IS_REGA && ra_idx != 5'd31) // if regA is a source register and not register 31
     begin // {
       if(ra_idx == mem_wb_dest_reg_idx)
       begin // {
@@ -157,7 +157,7 @@ module ex_stage(
       end // }
     end // }
 
-    if(id_ex_opb_select == ALU_OPB_IS_REGB) // if regB is a source register
+    if(id_ex_opb_select == ALU_OPB_IS_REGB && rb_idx != 5'd31) // if regB is a source register and not register 31
     begin // {
       if(rb_idx == mem_wb_dest_reg_idx)
       begin // {
@@ -169,7 +169,7 @@ module ex_stage(
       end // }
     end // }
 
-    if(id_ex_IR[31:26] == `STQ_INST)
+    if((id_ex_IR[31:26] == `STQ_INST || id_ex_cond_branch) && ra_idx != 5'd31) // special case for regA
     begin // {
       if(ra_idx == mem_wb_dest_reg_idx)
       begin // {
@@ -230,7 +230,7 @@ module ex_stage(
    // instantiate the branch condition tester
    //
   brcond brcond (// Inputs
-    .opa(id_ex_rega),       // always check regA value
+    .opa(ex_new_rega),       // always check regA value
     .func(id_ex_IR[28:26]), // inst bits to determine check
 
     // Output
