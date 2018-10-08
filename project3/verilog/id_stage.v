@@ -279,17 +279,17 @@ module id_stage(
       && !id_illegal_out && id_valid_inst_out) // curr inst is legal and valid
     begin // {
       if (id_opa_select_out == ALU_OPA_IS_REGA && // regA is a source register
-        ra_idx == id_ex_dest_reg_idx) // regA is the same as dest_reg for LDQ inst
+        ra_idx == id_ex_dest_reg_idx && ra_idx != 5'd31) // regA is the same as dest_reg for LDQ inst
       begin // {
         id_hazard_out = 1;
       end // }
       if (id_opb_select_out == ALU_OPB_IS_REGB && // regB is a source register
-        rb_idx == id_ex_dest_reg_idx) // regB is the same as dest_reg for LDQ inst
+        rb_idx == id_ex_dest_reg_idx && rb_idx != 5'd31) // regB is the same as dest_reg for LDQ inst
       begin // {
         id_hazard_out = 1;
       end // }
       if (if_id_IR[31:26] == `STQ_INST // special case for STQ
-        && ra_idx == id_ex_dest_reg_idx) // data hazard
+        && ra_idx == id_ex_dest_reg_idx && ra_idx != 5'd31) // data hazard
       begin // {
         id_hazard_out = 1;
       end
